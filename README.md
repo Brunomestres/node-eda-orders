@@ -23,8 +23,8 @@ O fluxo atual comeca no `order-service`, que recebe pedidos via HTTP e publica m
 | Servico | Papel |
 |---|---|
 | `order-service` | Recebe `POST /orders` e publica eventos |
-| `payment-service` | Processa pagamento com retries locais |
-| `inventory-service` | Reage ao evento de pedido para fluxo de estoque |
+| `payment-service` | Processa pagamento com retries locais e ack manual |
+| `inventory-service` | Reage ao evento de pedido para fluxo de estoque com ack manual |
 | `dead-letter-queue-service` | Base para tratar mensagens que falharam definitivamente |
 
 ## Arquitetura
@@ -77,8 +77,8 @@ orders.exchange (topic)
 1. O cliente envia um `POST /orders`.
 2. O `order-service` valida o payload e publica o evento `orders.created`.
 3. O RabbitMQ distribui a mensagem para as filas configuradas.
-4. O `payment-service` tenta processar o pagamento com retentativas.
-5. O `inventory-service` consome o mesmo evento para o contexto de estoque.
+4. `payment-service` e `inventory-service` processam mensagens com `ack/nack` manual.
+5. O `payment-service` tenta processar o pagamento com retentativas locais.
 6. Quando o processamento de pagamento falha de forma definitiva, a estrutura de dead letter entra como proximo passo da arquitetura.
 
 ## Infra local
@@ -205,6 +205,7 @@ curl -X POST http://localhost:3000/orders ^
 - O evento publicado e `orders.created`
 - `payment-service` consome pela fila `payment.order`
 - `inventory-service` consome pela fila `inventory.order`
+- `payment-service` e `inventory-service` usam `noAck: false` com confirmacao manual
 - `payment-service` ja possui configuracao de dead letter exchange
 - `dead-letter-queue-service` ja existe no repositorio, mas ainda esta em consolidacao
 
@@ -212,6 +213,7 @@ curl -X POST http://localhost:3000/orders ^
 
 - Alterar argumentos de uma fila ja criada no RabbitMQ, como `deadLetterExchange`, pode gerar `PRECONDITION_FAILED`
 - Em ambiente local, a correcao mais simples costuma ser apagar a fila no painel do RabbitMQ e subir o servico novamente
+- Como os consumers usam `ack/nack` manual, falhas de processamento impactam diretamente o destino da mensagem
 - O fluxo de dead letter ainda nao esta completamente fechado de ponta a ponta
 
 ## Scripts uteis
