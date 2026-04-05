@@ -1,8 +1,14 @@
-# Microservicos EDA - Order Service
+# Microservicos EDA com NestJS e RabbitMQ
 
-Projeto de estudo de arquitetura orientada a eventos com Node.js, NestJS e RabbitMQ.
+Projeto de estudo sobre arquitetura orientada a eventos usando Node.js, NestJS e RabbitMQ.
 
-Este repositorio contem um servico de pedidos (`order-service`) responsavel por receber requisicoes HTTP e publicar eventos no RabbitMQ quando um pedido e criado.
+O repositorio esta organizado em multiplos servicos, com um fluxo inicial em que o `order-service` recebe pedidos via HTTP e publica o evento `order.created`. Os servicos `payment-service` e `inventory-service` estao preparados para consumir eventos via RabbitMQ.
+
+## Servicos do projeto
+
+- `order-service`: API HTTP para criacao de pedidos
+- `payment-service`: microservico consumidor de eventos de pedido
+- `inventory-service`: microservico consumidor de eventos de pedido
 
 ## Stack
 
@@ -20,25 +26,25 @@ Este repositorio contem um servico de pedidos (`order-service`) responsavel por 
 .
 |-- docker-compose.yaml
 |-- README.md
-`-- order-service
-    |-- .env.example
-    |-- package.json
-    `-- src
-        |-- app.module.ts
-        |-- main.ts
-        `-- order
-            |-- dto
-            |-- order.controller.ts
-            |-- order.module.ts
-            `-- order.service.ts
+|-- order-service
+|-- payment-service
+`-- inventory-service
 ```
 
-## Como funciona
+## Fluxo atual
 
-1. A API recebe um `POST /orders`.
-2. O payload e validado pelo NestJS.
+1. O cliente envia um `POST /orders` para o `order-service`.
+2. O payload e validado com NestJS.
 3. O `order-service` publica o evento `order.created` no RabbitMQ.
-4. Outros microservicos podem consumir esse evento de forma assincrona.
+4. Os consumidores escutam eventos usando Nest Microservices com transporte RMQ.
+
+## Observacao importante
+
+Atualmente `payment-service` e `inventory-service` estao configurados com a mesma fila: `orders_queue`.
+
+Na pratica, isso significa que eles funcionam como consumidores concorrentes da mesma fila. Ou seja, cada mensagem tende a ser processada por apenas um deles, nao pelos dois ao mesmo tempo.
+
+Se a ideia for que ambos recebam todos os eventos, o proximo passo e separar filas por servico ou ajustar a estrategia de roteamento.
 
 ## Pre-requisitos
 
@@ -54,15 +60,19 @@ Na raiz do projeto:
 docker compose up -d
 ```
 
-Painel do RabbitMQ:
+Painel de administracao:
 
 - URL: `http://localhost:15672`
 - Usuario: `bruno`
 - Senha: `root`
 
-## Configuracao
+AMQP:
 
-Dentro de `order-service`, crie o arquivo `.env` com base no `.env.example`:
+- URL: `amqp://bruno:root@localhost:5672`
+
+## Configuracao do order-service
+
+Dentro de `order-service`, crie um arquivo `.env` com base no `.env.example`:
 
 ```env
 RABBITMQ_URL=amqp://bruno:root@localhost:5672
@@ -71,29 +81,55 @@ PORT=3000
 
 ## Instalacao
 
+Instale as dependencias em cada servico:
+
 ```bash
 cd order-service
 npm install
+
+cd ../payment-service
+npm install
+
+cd ../inventory-service
+npm install
 ```
 
-## Executando o projeto
+## Como executar
+
+Abra terminais separados.
+
+### 1. Suba o RabbitMQ
 
 ```bash
-# desenvolvimento
+docker compose up -d
+```
+
+### 2. Inicie o order-service
+
+```bash
+cd order-service
 npm run start:dev
+```
 
-# build
-npm run build
+### 3. Inicie o payment-service
 
-# producao
-npm run start:prod
+```bash
+cd payment-service
+npm run start:dev
+```
+
+### 4. Inicie o inventory-service
+
+```bash
+cd inventory-service
+npm run start:dev
 ```
 
 ## Endpoint disponivel
 
 ### `POST /orders`
 
-Recebe um pedido e publica o evento `order.created` no RabbitMQ.
+Cria um pedido e publica o evento `order.created`.
 
 Exemplo de payload:
 
@@ -115,7 +151,7 @@ Exemplo de payload:
 }
 ```
 
-Exemplo com `curl`:
+Exemplo com `curl` no Windows:
 
 ```bash
 curl -X POST http://localhost:3000/orders ^
@@ -125,6 +161,8 @@ curl -X POST http://localhost:3000/orders ^
 
 ## Scripts uteis
 
+Cada servico possui os scripts padrao do Nest:
+
 ```bash
 npm run start
 npm run start:dev
@@ -133,12 +171,20 @@ npm run test
 npm run test:e2e
 ```
 
+## Estado atual do projeto
+
+- `order-service` ja expoe endpoint HTTP para pedidos
+- `payment-service` consome o evento `order.created`
+- `inventory-service` consome o evento `order.created`
+- RabbitMQ sobe via `docker-compose.yaml`
+
 ## Proximos passos
 
-- Adicionar consumidores para os eventos publicados
-- Documentar a API com Swagger
-- Criar testes e2e para o fluxo de pedido
-- Evoluir para multiplos microservicos
+- Separar filas por contexto para evitar concorrencia indesejada
+- Adicionar ack manual e tratamento de erro
+- Padronizar configuracoes via `.env` em todos os servicos
+- Criar contratos de evento compartilhados
+- Adicionar observabilidade e testes de integracao
 
 ## Licenca
 
