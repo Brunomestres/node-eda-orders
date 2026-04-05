@@ -9,9 +9,14 @@ async function bootstrap() {
       transport: Transport.RMQ,
       options: {
         urls: ['amqp://bruno:root@localhost:5672'],
-        queue: 'orders_queue',
+        queue: 'payment.order',
+        exchange: 'orders.exchange',
+        exchangeType: 'topic',
+        routingKey: 'orders.created',
         queueOptions: {
           durable: true,
+          deadLetterExchange: 'payments.dlx',
+          deadLetterRoutingKey: 'payments.failed',
         },
         noAck: false,
       },

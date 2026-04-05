@@ -6,7 +6,7 @@ import { EventPattern } from '@nestjs/microservices';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @EventPattern('order.created')
+  @EventPattern('orders.created')
   inventory(order: any) {
     console.log(order);
   }
